@@ -1,0 +1,98 @@
+L4_PATH="$HOME/L4-SDI-Eth/l4"
+L4_UIMAGE_PATH="$HOME/L4-SDI-Eth/build/images/bootstrap.uimage"
+L4_UIMAGE_BOOT_PATH="$HOME/boot/bootstrap.uimage"
+
+l4build() {
+  # build l4re
+  ( cd ${L4_PATH} &&
+    make -j2;
+    if [ $? -ne 0 ] ; then
+      echo "l4build failed" ;
+      exit 1 ;
+    else
+      l4uimage ;
+      if [ $? -ne 0 ] ; then
+        echo "l4build failed" ;
+        exit 1 ;
+      else
+        echo "l4build finished" ;
+        exit 0 ;
+      fi
+    fi
+  )
+}
+
+l4uimage() {
+  ( cd ${L4_PATH} &&
+    make uimage E=eth-test &&
+    cp ${L4_UIMAGE_PATH} ${L4_UIMAGE_BOOT_PATH}
+    if [ $? -ne 0 ] ; then
+      echo "l4uimage failed" ;
+      exit 1
+    else
+      echo "l4uimage finished"
+      exit 0
+    fi
+  )
+}
+
+l4reset() {
+  echo "executing reset command, this may take a few seconds..." ;
+  ssh i30cons "/opt/remote_reset/bin/rr sdi1" &&
+  echo "reset command has been executed"
+}
+
+l4buildreset() {
+  if l4build ; then
+    l4reset
+  else
+    echo "l4build failed. Will NOT execute reset command!"
+  fi
+}
+
+l4uimagereset() {
+  if l4uimage ; then
+    l4reset
+  else
+    echo "l4uimage failed. Will NOT execute reset command!"
+  fi
+}
+
+l4minicom_legacy() {
+  echo "executing minicom command, this may take a few seconds..." ;
+  ssh i30cons -t "minicom sdi1" &&
+  echo "minicom closed"
+}
+
+l4minicom() {
+  echo "attaching to minicom screen session, this may take a few seconds..." ;
+  ssh i30cons -t "screen -x -R -q -S minicomsdi1session minicom sdi1" &&
+  echo "minicom closed"
+}
+
+l4wakeup_i30pc13() {
+  echo "executing wakeup command, this may take a few seconds..." ;
+  ssh i30s7 "wakeup-host i30pc13" &&
+  echo "wakeup command has been executed"
+}
+
+l4connect_i30pc13() {
+  l4wakeup_i30pc13
+  echo "will ping i30pc13 until host is available"
+  echo "ping..."
+  while ! ping -c1 i30pc13 &>/dev/null; do sleep 1 && echo "ping..."; done
+  echo "host i30pc13 available"
+  echo "connecting to i30pc13"
+  ssh i30pc13 &&
+  echo "connection to i30pc13 terminated"
+}
+
+
+alias l4b="l4build"
+alias l4br="l4buildreset"
+
+alias l4u="l4uimage"
+alias l4ur="l4uimagereset"
+
+alias l4r="l4reset"
+
